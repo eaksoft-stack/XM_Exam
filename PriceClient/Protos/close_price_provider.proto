@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+option csharp_namespace = "GrpcService1";
+
+package closed_price_provider;
+
+// The ClosedPrice service definition.
+service ClosePriceProvider {
+  
+  rpc GetClosePrice (GetClosePriceRequest) returns (ClosePriceReply);
+}
+
+// The request message 
+message GetClosePriceRequest {
+  string Symbol = 1;
+  int64 TickTimestamp = 2;
+}
+
+// The response message 
+message ClosePriceReply {
+  string Symbol = 1;
+  int64 TickTimestamp = 2;
+  string Price= 3;
+}
