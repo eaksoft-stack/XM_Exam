@@ -12,10 +12,11 @@ namespace PriceClient
     internal class ProtoClient
     {
       
-        public void GetPrice (long timestamp)
+        public void GetPrice (string endPoint,long timestamp)
         {
+
             // 
-            GrpcChannel channel = GrpcChannel.ForAddress("http://localhost:5219");
+            GrpcChannel channel = GrpcChannel.ForAddress(endPoint);
 
             // 
             var client = new ClosePriceProvider.ClosePriceProviderClient(channel);

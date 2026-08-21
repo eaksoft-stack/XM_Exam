@@ -26,10 +26,10 @@ namespace PriceCollector.Services
         private Dictionary<string,string> priceFeeders;
         private string listenIP;
         private InterfacePriceProcessor priceProcessor;
-        private bool newRequestFlg = false;
-        private long reqTimestampSeconds=0;
-        private string reqSymbol = "";
-        private DateTimeOffset passedHour;
+        private volatile bool newRequestFlg = false;
+        private long reqTimestampSeconds =0;
+        private volatile string reqSymbol = "";
+        private DateTimeOffset passedHour;                                                                          // value of the hour which is last processed
 
 
         //------------------------------------------
@@ -70,8 +70,10 @@ namespace PriceCollector.Services
                     if (parsedMessage.Length ==2)
                     {
                         reqSymbol = parsedMessage[0];
-                        if (long.TryParse(parsedMessage[1], out reqTimestampSeconds))
+                        long currTimestamp;
+                        if (long.TryParse(parsedMessage[1], out currTimestamp))
                         {
+                            Volatile.Write(ref reqTimestampSeconds, currTimestamp);
                             newRequestFlg = true;
                         }
                     }
@@ -133,55 +135,86 @@ namespace PriceCollector.Services
 
         //-------------------------------------------
         // Price Processing 
+        // Price is processing if have external requiest for it or
+        // if new 1 hour candel is avaliable
         //------------------------
         private async void PricesProcessing(CancellationToken stoppingToken)
         {
-            if (CheckTime())                                                    // If it is time
-            {
-                DateTimeOffset currTime = DateTimeOffset.UtcNow;
-                DateTimeOffset prevHour = currTime.AddHours(-1);
-
-                DateTimeOffset reqTime = new DateTimeOffset(
-                    prevHour.Year,
-                    prevHour.Month,
-                    prevHour.Day,
-                    prevHour.Hour,
-                    0,
-                    0,
-                    prevHour.Offset
-                );
-                
-
-       
-                priceProcessor.Processing(reqTime.ToUnixTimeSeconds());
-                priceProcessor.SavePrice();
-            }
-
-
             if (newRequestFlg)                                                  // If have external request
             {
-                DateTimeOffset reqHour = DateTimeOffset.FromUnixTimeSeconds(reqTimestampSeconds); 
-                DateTimeOffset reqTime = new DateTimeOffset(
-                    reqHour.Year,
-                    reqHour.Month,
-                    reqHour.Day,
-                    reqHour.Hour,
-                    0,
-                    0,
-                    reqHour.Offset
-                );
-
-
-
-                priceProcessor.Processing(reqTime.ToUnixTimeSeconds());
-                priceProcessor.SavePrice();
-
-                // Send signal to PriceProvider service. Price is ready. PriceProvider service must take the new price from DB! 
-                GlobalConstants.signal.SetResult(true);
+                ExternalPriceRequestProcessing();
             }
 
-            newRequestFlg = false;
+            if (CheckTime())                                                    // If it is time
+            {
+                HourlyPriceRequestProcessing();
+            }
+
         }
+
+
+        //-------------------------------------------
+        // External request processing
+        //--------------------------
+        void ExternalPriceRequestProcessing()
+        {
+
+            long currTimestamp = Volatile.Read(ref reqTimestampSeconds);
+            DateTimeOffset reqHour = DateTimeOffset.FromUnixTimeSeconds(currTimestamp);
+            DateTimeOffset reqTime = new DateTimeOffset(
+                reqHour.Year,
+                reqHour.Month,
+                reqHour.Day,
+                reqHour.Hour,
+                0,
+                0,
+                reqHour.Offset
+            );
+
+            priceProcessor.Processing(reqTime.ToUnixTimeSeconds());
+            priceProcessor.SavePrice();
+
+            // Send signal to PriceProvider service. Price is ready. PriceProvider service must take the new price from DB! 
+            GlobalConstants.signal.SetResult(true);
+            newRequestFlg = false;
+
+        }
+
+
+
+        //-------------------------------------------
+        // Hourly request processing
+        //-------------------------
+        void HourlyPriceRequestProcessing()
+        {
+
+            DateTimeOffset currTime = DateTimeOffset.UtcNow;
+            DateTimeOffset prevHour = currTime.AddHours(-1);
+
+            DateTimeOffset reqTime = new DateTimeOffset(
+                prevHour.Year,
+                prevHour.Month,
+                prevHour.Day,
+                prevHour.Hour,
+                0,
+                0,
+                prevHour.Offset
+            );
+
+
+
+            priceProcessor.Processing(reqTime.ToUnixTimeSeconds());         // Processing the price. Collect prices from feeders and calculate average price
+
+            if (priceProcessor.SavePrice() != 0)                            // try to save the price
+            {                                                               // if price not saved because price is incorrect / price == 0/ then ..
+                passedHour = default;                                       // next second the porgram will send new request for the same hour
+                                                                            // if all feeds return price =0 the same request will be repited maximum 60 times per one hour.
+                                                                            // when hour expire and no positive responce , we will see gap in price database
+            }
+
+
+        }
+
 
     
         //-------------------------------------------

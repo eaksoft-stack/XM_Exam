@@ -8,7 +8,7 @@ namespace PriceCollector.PriceHandlers
 {
     public class ClosePriceProcessor:InterfacePriceProcessor
     {
-        private const string symbol="btcusd";
+        private const string symbol= "BTCUSD";
         private string _connectionStringDB="";
         private Dictionary<string, string> _priceFeeders= new Dictionary<string, string>();
         private ILogger<KernelService> _logger;
@@ -80,11 +80,21 @@ namespace PriceCollector.PriceHandlers
         //----------------------------------------
         // Save agregated price in SQLite
         //-----------------------------
-        public void SavePrice()
+        public int SavePrice()
         {
-            InterfaceDBHandler sqLite = new SQLiteHandler();                                            // Create SQLite DB and prices table
-            sqLite.DeletePrice(_connectionStringDB, priceTimestamp);                                    // Delete record if already exists
-            sqLite.InsertPrice(_connectionStringDB, symbol, priceTimestamp, closedPriceAgregated);      // Insert the record 
+            int retStat = 0;                                                                                // status: 0 - saved; 1 - invalid price
+            if (closedPriceAgregated != 0m)
+            {
+                InterfaceDBHandler sqLite = new SQLiteHandler();                                            // Create SQLite DB and prices table
+                sqLite.DeletePrice(_connectionStringDB, priceTimestamp);                                    // Delete record if already exists
+                sqLite.InsertPrice(_connectionStringDB, symbol, priceTimestamp, closedPriceAgregated);      // Insert the record 
+            }
+            else
+            {
+                retStat =1;
+            }
+
+            return retStat;
         }
 
 
@@ -137,6 +147,7 @@ namespace PriceCollector.PriceHandlers
 
             return resultPrice;
         }
+       
 
 
 

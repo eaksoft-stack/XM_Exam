@@ -1,4 +1,5 @@
 <Solution>
   <Project Path="PriceClient/PriceClient.csproj" Id="4d155eea-0a55-4740-9980-1f496282c417" />
+  <Project Path="PriceCollector.Tests/PriceCollector.Tests.csproj" />
   <Project Path="PriceCollector/PriceCollector.csproj" />
 </Solution>

@@ -7,7 +7,7 @@ namespace PriceCollector.PriceHandlers
         public void ProcessorInit(Dictionary<string, string> priceFeeders, string connStrDb);
 
         public void Processing(long reqTime);
-        public void SavePrice();
+        public int SavePrice();
 
     }
 }
